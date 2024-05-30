@@ -2,12 +2,18 @@ from rest_framework import serializers
 
 from .models import *
 
-
+class CategoryNameSerializer(serializers.ModelSerializer):
+   
+  
+    class Meta:
+        model = Category
+        fields = ["id", "category_name"]
 
 class SubCategorySerializer(serializers.ModelSerializer):
+    category = CategoryNameSerializer()
     class Meta:
         model = SubCategory
-        fields = ["id", "subcategory_name","image"]
+        fields = ["id", "category", "subcategory_name","image"]
         
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = SubCategorySerializer(many=True, read_only=True)
@@ -32,14 +38,19 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         # fields = ["id","product", "color","image"]
         fields = ["id","image","color"]
-
+class BrandSerializer(serializers.ModelSerializer):
+        class Meta:
+            model = Brand
+            # fields = ["id","product", "color","image"]
+            fields = ["id","name"]
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    
+    Product_SubCategory = SubCategorySerializer()
+    brand = BrandSerializer()
     class Meta:
         model = Product
-        fields = ['id', 'Product_SubCategory','name','brand', 'material', 'price', 'digital','details','cover_image']   
+        fields = ['id', 'Product_SubCategory','name','brand', 'material', 'price','discount','digital','details','cover_image']   
 
 
 class VariantSerializer(serializers.ModelSerializer):
@@ -59,7 +70,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['id', 'user', 'date_orderd','get_cart_total','get_cart_items']
+        fields = ['id', 'user', 'date_orderd','complete','transaction_id','get_cart_total','get_cart_items']
 
     get_cart_total = serializers.ReadOnlyField()
     get_cart_items = serializers.ReadOnlyField()
@@ -79,12 +90,40 @@ class WatchListProductSeriaLizer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username"]
+        fields = ["id", "username","email"]
+
+class CustomUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomeUser
+        fields = ["id", "username","email","phone_number"]
 
 class QuestionAnswerSerializer(serializers.ModelSerializer):
     user = UserSerializer()  # Corrected field name to 'user'
+    product = ProductSerializer()
     
     class Meta:
         model = QuestionAnswer
         fields = ["id", "user","product", "question", "answer", "createAt"]
-        
+class DeliveryFeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryFee
+        fields = ["id", "address","fee","duration"]
+class StatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Status
+        fields = ["id", "status_name"]
+class ShippingAddressSerializer(serializers.ModelSerializer):
+    customer = UserSerializer()
+    order = OrderSerializer()
+    order_items = serializers.SerializerMethodField()
+    delivery_fee = DeliveryFeeSerializer()
+    status = StatusSerializer()
+
+    class Meta:
+        model = ShippingAdress
+        fields = ["id", "customer", "order", "status", "name", "address", "division", "district", "upazila", "phone_number", "delivery_fee","order_items"]
+
+    def get_order_items(self, obj):
+        order_items = OrderItem.objects.filter(order=obj.order)
+        serializer = OrderItemSerializer(order_items, many=True)
+        return serializer.data

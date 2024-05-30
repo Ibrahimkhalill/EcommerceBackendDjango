@@ -1,5 +1,5 @@
 import datetime
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
@@ -23,7 +23,104 @@ from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
 from random import shuffle
 User=get_user_model()
+from django.core.mail import send_mail
+from .OtpGenarator import generate_otp
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.utils import timezone
 
+def index(request):
+    otp = generate_otp()
+    return render(request,"ForgetPasswordEmail.html",{'otp':otp})
+
+@api_view(["POST"])
+def send_otp(request):
+    if request.method == 'POST':
+        email = request.data.get('email')
+
+        try:
+            # Generate OTP
+            otp = generate_otp()
+            # Save OTP to database
+            OTP.objects.create(email=email, otp=otp)
+            
+            # Render the HTML template
+            html_content = render_to_string('otp_email_template.html', {'otp': otp, 'email':email})
+            
+            
+            # Send email
+            msg = EmailMultiAlternatives(
+                subject='Your OTP Code',
+                body='This is an OTP email.',
+                from_email='hijabpoint374@gmail.com',  # Sender's email address
+                to=[email],
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send(fail_silently=False)  
+            
+            return JsonResponse({'message': 'OTP sent to your email.'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    return JsonResponse({'message': 'Invalid method.'})
+
+@api_view(["POST"])
+def Password_reset_send_otp(request):
+    if request.method == 'POST':
+        email = request.data.get('email')
+        try:
+
+            existing_user = CustomeUser.objects.get(email=email)
+            if existing_user:
+                    # Generate OTP
+                otp = generate_otp()
+                # Save OTP to database
+                OTP.objects.create(email=email, otp=otp)
+                
+                # Render the HTML template
+                html_content = render_to_string('ForgetPasswordEmail.html', {'otp': otp, 'email':email})
+            
+                # Send email
+                msg = EmailMultiAlternatives(
+                    subject='Your OTP Code',
+                    body='This is an OTP email.',
+                    from_email='hijabpoint374@gmail.com',  # Sender's email address
+                    to=[email],
+                )
+                msg.attach_alternative(html_content, "text/html")
+                msg.send(fail_silently=False)  
+                
+                return JsonResponse({'message': 'OTP sent to your email.'}, status = status.HTTP_200_OK)
+                
+           
+        except :
+                    
+            return Response({'message': 'The account you provided does not exist. Please try again with another account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+      
+    return JsonResponse({'message': 'Invalid method.'})
+
+@api_view(["POST"])
+def verify_otp(request):
+    if request.method == 'POST':
+        otp = request.data.get('otp')
+        print(otp)
+        try:
+                otp_record = OTP.objects.get(otp=otp)
+                otp_record.attempts += 1  # Increment attempt count
+                otp_record.save()  # Save the updated attempt count
+                if (timezone.now() - otp_record.created_at).seconds > 120:
+                   
+                    otp_record.delete()  # Expired OTP remove korte hobe
+                    return Response({'message': ' Otp Expired'})
+                else:
+                   
+                    otp_record.delete()  # Verified OTP remove korte hobe
+                    return Response('success', status=status.HTTP_200_OK)
+        except OTP.DoesNotExist:
+                return Response({'message': 'Invalid Otp'}, status=status.HTTP_400_BAD_REQUEST)
+           
+   
+    return Response("Method is not allowed")
 
 @api_view(['POST'])
 def signup_view(request):
@@ -32,19 +129,27 @@ def signup_view(request):
         username = request.data.get('username')
         email = request.data.get('email')
         password = request.data.get('password')
+        phone_number = request.data.get('phone_number')
+
+        # Check if a user with the given email already exists
+        existing_user = User.objects.filter(email=email).first()
+        if existing_user:
+            # If a user with the email exists, return an error response
+            return Response({'message': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Use create_user to create a new user with hashed password
             user = User.objects.create_user(username=username, email=email, password=password)
-
+            customeruser = CustomeUser(username=username, email=email, phone_number = phone_number)
+            customeruser.save()
             # Check if user creation was successful
             if user:
                 return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
             else:
                 return Response({'message': 'User registration failed'}, status=status.HTTP_400_BAD_REQUEST)
 
-        except IntegrityError:
-            return Response({'message': 'Username or email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'message': 'User registration failed', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 
 
@@ -71,19 +176,25 @@ def google_signup(request):
 @authentication_classes([TokenAuthentication])
 def login_view(request):
     if request.method == 'POST':
-        username = request.data.get('username')
+        email = request.data.get('username')
         password = request.data.get('password')
-        
-        user = authenticate(username=username, password=password)
-        print(user)
-        if user is not None:
-            print(user)
-            django_login(request, user)
-            token, created = Token.objects.get_or_create(user=user)
-            print()
-            return JsonResponse({'token': token.key, 'username': username}, status=201)
-        else:
-            return JsonResponse({'error': 'Invalid credentials'}, status=401)
+        try:
+            user = CustomeUser.objects.get(email =email)
+            print(user.username)
+            # Authenticate user using email and password
+            user_auth = authenticate(request, username=user.username, password=password)
+       
+            if user_auth is not None:
+                print(user_auth)
+                django_login(request, user_auth)
+                token, created = Token.objects.get_or_create(user=user_auth)
+                print()
+                return JsonResponse({'token': token.key, 'username': user.username}, status=201)
+            else:
+                return JsonResponse({'error': 'Invalid credentials'}, status=401)
+        except User.DoesNotExist:
+            # User with the provided email does not exist
+            return JsonResponse({'error': 'User does not exist'}, status=404)   
         
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
@@ -109,6 +220,63 @@ def logout_view(request):
     logout(request)
     
     return JsonResponse({'message': 'Logout successful'})
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated]) 
+def changepassword(request):
+    if request.method == "POST":
+        user_id =  request.user
+        
+        old_password = request.data.get('oldpassword')
+        new_password = request.data.get('newpassword')
+        
+        try:
+            user = User.objects.get(username=user_id)
+            
+            if user.check_password(old_password):
+                user.set_password(new_password)
+                user.save()
+                return Response({"message": "Password changed successfully"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message": "Previous password does not match"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except User.DoesNotExist:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    else:
+        return Response({'message': 'Method Not Allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+@api_view(['POST'])
+def reset_password(request):
+    if request.method == "POST":
+
+        email =  request.data.get('email')
+        new_password = request.data.get('newpassword')
+        
+        try:
+            userdata = CustomeUser.objects.get(email=email)
+            user = User.objects.get(username=userdata.username)
+            
+            if user:
+                user.set_password(new_password)
+                user.save()
+                return Response({"message": "Password changed successfully"}, status=status.HTTP_200_OK)
+           
+        
+        except User.DoesNotExist:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    else:
+        return Response({'message': 'Method Not Allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
 @api_view(['GET'])
 def get_products(request):
     if request.method == 'GET':
@@ -195,6 +363,21 @@ def get_displaymarketing(request):
 
         return Response(response_data, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+def get_brand(request):
+    if request.method == 'GET':
+        brand = Brand.objects.all()
+        brand_serializer = BrandSerializer(brand, many=True)
+        subcategories = SubCategory.objects.all()
+        subcategory_serializer = SubCategorySerializer(subcategories, many=True)
+
+        response_data = {
+            'brand': brand_serializer.data,
+             'subcategory': subcategory_serializer.data
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 @api_view(['GET'])  
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])     
@@ -206,15 +389,26 @@ def cart(request):
             order, created = Order.objects.get_or_create(user=user, complete=False)
             items = order.orderitem_set.all()
             
+
+            user = CustomeUser.objects.get(username = data)
+            userserializer = CustomUserSerializer(user)
             item_serializer = OrderItemSerializer(items, many=True)
             serialized_items = item_serializer.data
-            
+            delivery = DeliveryFee.objects.all()
+            deliverySeriazlizer = DeliveryFeeSerializer(delivery, many=True)
             order_serializer = OrderSerializer(order)
+            order_status  = Status.objects.all()
+            statusSerializer = StatusSerializer(order_status,many=True)
             serialized_order = order_serializer.data
+           
             response_data = {            
                 'items': serialized_items,
                 'carttotal': serialized_order['get_cart_total'],
                 'cartItems': serialized_order['get_cart_items'],
+                "delivery": deliverySeriazlizer.data,
+                "status": statusSerializer.data,
+                "user":userserializer.data,
+                
             }
             return Response(response_data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
@@ -275,7 +469,7 @@ def get_product_id(request, id):
         variant =  Variant.objects.filter(product=product)
         
         product_serializer = ProductSerializer(product)
-        print(product_serializer)
+       
         variant_serilizer = VariantSerializer(variant, many=True)
         
         # Assuming you want to filter order items by each variant
@@ -311,27 +505,55 @@ def processOrder(request):
     
     if request.user.is_authenticated:
         customer = request.user
+        user = CustomeUser.objects.get(username = customer)
         order, created = Order.objects.get_or_create(user=customer, complete=False)
-
-        total = float(data_dict['total'])
+        
+        total = data_dict['total']
+        print(total)
         order.transaction_id = transaction_id
 
         if total == order.get_cart_total:
             order.complete = True
         order.save()
+        status_id = Status.objects.get(status_name = data_dict['status'])   
+        delivery = DeliveryFee.objects.get(pk = data_dict['delivery_id'])   
 
         if order.shipping == True:
             ShippingAdress.objects.create(
                 customer=customer,
                 order=order,
+                status = status_id,
                 name=data_dict['name'],
                 address=data_dict['address'],
                 division=data_dict['division'],
                 district=data_dict['district'],
                 upazila =data_dict['upazila'],
                 phone_number=data_dict['number'],
+                delivery_fee = delivery
             )
-            return Response("Order is Sucessfully placed")
+
+            order_details = OrderItem.objects.filter(order = order)
+            shiiping = ShippingAdress.objects.get(order=order)
+            
+           
+            context ={
+                "order_details":order_details,
+                "ShippingAdress": shiiping,
+                "total": total,
+                
+            }
+            html_content = render_to_string('OrderConfirmAtion.html',context)
+            
+                # Send email
+            msg = EmailMultiAlternatives(
+                subject='Your order has been placed!',
+                body='This is an OTP email.',
+                from_email='hijabpoint374@gmail.com',  # Sender's email address
+                to=[user.email],
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send(fail_silently=False)  
+            return Response("Order is Sucessfully placed and Customer center contact you!")
         
     else:
         print('User is not logged in.')
@@ -342,7 +564,9 @@ def itemSearch(request):
     try:
         if request.method == 'POST':
             query = json.loads(request.body.decode('utf-8'))
-            results = Product.objects.filter(Q(name__icontains=query))
+            results = Product.objects.filter(
+    Q(name__icontains=query) | Q(brand__name__icontains=query) | Q(Product_SubCategory__subcategory_name__icontains=query)
+)
             serialized_data = ProductSerializer(results, many=True).data
             if len(serialized_data) == 0:
                 context = {
@@ -479,7 +703,9 @@ def SaveWatchlistProduct(request):
 @permission_classes([IsAuthenticated]) 
 def getWishlistProduct(request):
     if request.method == 'GET':
-        wishlist = WatchListProduct.objects.all()
+        username = request.user
+        user = User.objects.get(username =username)
+        wishlist = WatchListProduct.objects.filter(user=user)
         wishlistSerializer = WatchListProductSeriaLizer(wishlist, many=True)
         return Response(wishlistSerializer.data, status=status.HTTP_200_OK)
 
@@ -517,3 +743,57 @@ def SaveQuestionAnswer(request):
     except Exception as e:
         print("An error occurred:", str(e))  # Debugging
         return Response({"message": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def getShhipingAddress(request):
+    if request.method == 'GET':
+        username = request.user
+        user = User.objects.get(username =username)
+        questionAnswer = ShippingAdress.objects.filter(customer=user)
+        question = ShippingAddressSerializer(questionAnswer, many=True)
+        return Response(question.data, status=status.HTTP_200_OK)
+
+
+
+
+@api_view(['GET'])  
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated]) 
+def getUserDeatils(request):
+    if request.method == 'GET':
+        username = request.user
+        userAll = User.objects.get(username =username)
+        user = UserSerializer(userAll)
+        return Response(user.data, status=status.HTTP_200_OK)
+
+
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated]) 
+@api_view(['DELETE'])
+def delete_wishlist_product(request, id):
+    try:
+        instance = WatchListProduct.objects.get(pk=id)
+    except WatchListProduct.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    instance.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+def OrderConfirm(request):
+    order = Order.objects.get(pk=4)
+    
+    order_details = OrderItem.objects.filter(order = 4)
+    shiiping = ShippingAdress.objects.get(order= 4)
+   
+            
+    context ={
+            "order_details": order_details,
+            "ShippingAdress": shiiping,
+           
+
+            
+        }
+    return render(request, "orderConfirmAtion.html",context)

@@ -5,6 +5,23 @@ from django.utils.html import format_html
 
 # Create your models here
 
+
+class OTP(models.Model):
+    email = models.EmailField(null=True, blank=True)
+    otp = models.CharField(max_length=5)
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.IntegerField(default=0)  # Track attempts
+
+    def __str__(self):
+        return f'OTP for {self.email}: {self.otp}'
+
+class CustomeUser(models.Model):
+	username = models.CharField(max_length=100, blank=True, null=True)
+	email = models.EmailField(null=True, blank=True)
+	phone_number = models.CharField(max_length=11, null=True, blank=True)
+	def __str__(self):
+		return self.username
+
 class Category(models.Model):
 	category_name = models.TextField(null=True, blank=True)
 	icons =  models.ImageField(upload_to='icons',null=True,blank=True)
@@ -19,11 +36,24 @@ class SubCategory(models.Model):
 	def	 __str__(self):
 		return self.subcategory_name
 
+class Brand(models.Model):
+	name = models.CharField(max_length=200, blank=True, null=True)
+
+	def __str__(self):
+		return self.name
+
+
+class Material(models.Model):
+	name = models.CharField(max_length=200, blank=True, null=True)
+
+	def __str__(self):
+		return self.name
+
 
 class Product(models.Model):
     Product_SubCategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank =True,related_name='productsubcategories')
     name = models.TextField(null=True, blank=False)
-    brand = models.CharField(max_length=200, blank=True, null=True)
+    brand = models.ForeignKey(Brand,on_delete=models.SET_NULL, blank=True, null=True)
     material = models.CharField(max_length=200, blank=True, null=True)
     digital = models.BooleanField(default=False, null=True, blank=False)
     details = RichTextField(blank=True)
@@ -47,10 +77,10 @@ class Color(models.Model):
 class ProductImage(models.Model):
     image = models.ImageField(upload_to='product_images/', null=True, blank=True)
     color = models.ForeignKey(Color, on_delete=models.SET_NULL, blank=True, null=True)
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, blank=True, null=True)
+    
     
     def __str__(self):
-        return f"{self.color.name} - {self.product.name}"
+        return f"{self.color.name}"
     
     @property
     def imageURL(self):
@@ -67,11 +97,7 @@ class Variant(models.Model):
     quantity = models.IntegerField(blank=True, null=True)
     price = models.IntegerField(blank=True, null=True)
     
-    def __str__(self):
-        return format_html(
-            f"<img src='{self.image.imageURL}' width='100' height='100'> "
-            f"{self.product}  - {self.size} - Quantity: {self.quantity} - Price: {self.price}"
-        )
+    
     
 
 
@@ -80,7 +106,7 @@ class Order(models.Model):
 	date_orderd=models.DateTimeField(auto_now_add=True)
 	complete=models.BooleanField(default=False,null=True,blank=False)
 	transaction_id=models.CharField(max_length=200,null=True)
-
+    
 	def __str__(self):
 		return str(self.id)
 		
@@ -90,7 +116,7 @@ class Order(models.Model):
 		shipping=False
 		orderitems=self.orderitem_set.all()
 		for i in orderitems:
-			if i.product.digital==False:
+			if i.variant.product.digital==False:
 				shipping=True
 		return shipping
 	
@@ -100,6 +126,12 @@ class Order(models.Model):
 		orderitems=self.orderitem_set.all()
 		total=sum([item.get_total for item in orderitems])
 		return total
+	
+	@property
+	def get_order_item(self):
+		orderitems=self.orderitem_set.all()
+		return orderitems
+
 	@property
 	def get_cart_items(self):
 		orderitems=self.orderitem_set.all()
@@ -117,10 +149,25 @@ class OrderItem(models.Model):
 		total=self.variant.price * self.quantity
 		return total
 	
+class Status(models.Model):
+	status_name = models.CharField(max_length=500,blank=True,null=True)
+
+	def __str__(self):
+		return self.status_name
+
+class DeliveryFee(models.Model):
+	address = models.CharField(max_length=500,blank=True,null=True)
+	fee = models.CharField(max_length=500,blank=True,null=True)
+	duration = models.CharField(max_length=500,blank=True,null=True)
+
+	def __str__(self):
+		return f"{self.address} - {self.fee}"
 
 class ShippingAdress(models.Model):
+     
 	customer=models.ForeignKey(User,on_delete=models.SET_NULL,blank=True,null=True)
 	order=models.ForeignKey(Order,on_delete=models.SET_NULL,blank=True,null=True)
+	status = models.ForeignKey(Status,on_delete=models.SET_NULL,blank=True,null=True)
 	name=models.CharField(max_length=200,null=True)
 	address=models.CharField(max_length=200,null=True)
 	division=models.CharField(max_length=200,null=True)
@@ -128,6 +175,9 @@ class ShippingAdress(models.Model):
 	upazila = models.CharField(max_length=50, null=True)
 	phone_number=models.CharField(max_length=11)
 	date_added=models.DateTimeField(auto_now_add=True)
+	delivery_fee = models.ForeignKey(DeliveryFee,on_delete=models.SET_NULL,blank=True,null=True)
+
+
 
 	def __str__(self):
 		return self.address

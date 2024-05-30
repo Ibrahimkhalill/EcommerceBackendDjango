@@ -19,12 +19,18 @@ admin.site.register(Color)
 admin.site.register(Variant)
 admin.site.register(WatchListProduct)
 admin.site.register(QuestionAnswer)
+admin.site.register(DeliveryFee)
+admin.site.register(Status)
+admin.site.register(OTP)
+admin.site.register(CustomeUser)
+admin.site.register(Brand)
+admin.site.register(ProductImage)
 
 from django.forms import inlineformset_factory
 
-class ProductImageInline(admin.TabularInline):
-    model = ProductImage
-    extra = 1  # Number of extra forms to display
+# class ProductImageInline(admin.TabularInline):
+#     model = ProductImage
+#     extra = 1  # Number of extra forms to display
     
 
 class ProductSizeInline(admin.TabularInline):
@@ -37,6 +43,6 @@ class ProductVariantInline(admin.TabularInline):
    
 
 class ProductAdmin(admin.ModelAdmin):
-    inlines = [ProductImageInline,ProductVariantInline]
+    inlines = [ProductVariantInline]
 
 admin.site.register(Product, ProductAdmin)
