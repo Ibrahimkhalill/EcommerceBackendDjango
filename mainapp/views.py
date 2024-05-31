@@ -400,7 +400,7 @@ def cart(request):
             order_status  = Status.objects.all()
             statusSerializer = StatusSerializer(order_status,many=True)
             serialized_order = order_serializer.data
-           
+            print('jk',delivery)
             response_data = {            
                 'items': serialized_items,
                 'carttotal': serialized_order['get_cart_total'],
@@ -469,7 +469,8 @@ def get_product_id(request, id):
         variant =  Variant.objects.filter(product=product)
         
         product_serializer = ProductSerializer(product)
-       
+        delivery = DeliveryFee.objects.all()
+        deliverySeriazlizer = DeliveryFeeSerializer(delivery, many=True)
         variant_serilizer = VariantSerializer(variant, many=True)
         
         # Assuming you want to filter order items by each variant
@@ -486,7 +487,8 @@ def get_product_id(request, id):
         response_data = {
             'order_items': [OrderItemSerializer(item).data if item else None for item in order_items],
             'product': product_data,
-            'variants': variant_serilizer.data
+            'variants': variant_serilizer.data,
+            "delivery": deliverySeriazlizer.data,
     }
 
         return Response(response_data, status=status.HTTP_200_OK)
