@@ -110,7 +110,7 @@ DATABASES = {
 
 
 AUTHENTICATION_BACKENDS = [
-    'mainapp.backends.EmailAuthBackend',
+   
     'django.contrib.auth.backends.ModelBackend',  # Default authentication backend
 ]
 

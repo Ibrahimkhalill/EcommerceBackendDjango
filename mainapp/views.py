@@ -163,6 +163,8 @@ def google_signup(request):
         try:
         
             user = User.objects.create_user(username=username, email=email)
+            customeruser = CustomeUser(username=username, email=email)
+            customeruser.save()
 
             if user:
                 return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
@@ -204,6 +206,7 @@ def goole_login_view(request):
         print(username)
         
         users = User.objects.filter(username=username)
+        print(users)
         
         if users.exists():  # Check if there are any users in the queryset
             user = users.first()  # Get the first user from the queryset
@@ -385,6 +388,7 @@ def cart(request):
     try:
         data = request.user
         user = User.objects.get(username=data)
+        print(data)
         if user is not None:
             order, created = Order.objects.get_or_create(user=user, complete=False)
             items = order.orderitem_set.all()
@@ -460,7 +464,7 @@ def update_item(request):
            
             return JsonResponse('Invalid JSON data', status=400, safe=False)
         
-from django.http import Http404
+
 @api_view(['GET'])
 def get_product_id(request, id):
     if request.method == 'GET':
@@ -469,7 +473,8 @@ def get_product_id(request, id):
         variant =  Variant.objects.filter(product=product)
         
         product_serializer = ProductSerializer(product)
-       
+        delivery = DeliveryFee.objects.all()
+        deliverySeriazlizer = DeliveryFeeSerializer(delivery, many=True)
         variant_serilizer = VariantSerializer(variant, many=True)
         
         # Assuming you want to filter order items by each variant
@@ -486,7 +491,8 @@ def get_product_id(request, id):
         response_data = {
             'order_items': [OrderItemSerializer(item).data if item else None for item in order_items],
             'product': product_data,
-            'variants': variant_serilizer.data
+            'variants': variant_serilizer.data,
+            "delivery": deliverySeriazlizer.data,
     }
 
         return Response(response_data, status=status.HTTP_200_OK)
