@@ -404,7 +404,7 @@ def cart(request):
             order_status  = Status.objects.all()
             statusSerializer = StatusSerializer(order_status,many=True)
             serialized_order = order_serializer.data
-           
+            print('jk',delivery)
             response_data = {            
                 'items': serialized_items,
                 'carttotal': serialized_order['get_cart_total'],
