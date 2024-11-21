@@ -12,10 +12,17 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+#Cloudinary imports
+
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -28,6 +35,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+CELERY_TIMEZONE = 'UTC'
 
 # Application definition
 
@@ -39,10 +47,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mainapp',
+    'adminpanel',
     'rest_framework',
     'corsheaders',
     'rest_framework.authtoken',
     'ckeditor',
+    'cloudinary'
     
   
 ]
@@ -59,7 +69,7 @@ REST_FRAMEWORK = {
     ],
 }
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000","http://localhost:3002", # React development server
+    "http://localhost:3000" # React development server
 ]
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -107,7 +117,12 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
+CELERY_BEAT_SCHEDULE = {
+    'delete-expired-otps': {
+        'task': 'yourapp.tasks.delete_expired_otps',
+        'schedule': timedelta(minutes=2),
+    },
+}
 
 AUTHENTICATION_BACKENDS = [
    
@@ -149,8 +164,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Default primary key field type
@@ -165,3 +182,13 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'hijabpoint374@gmail.com'
 EMAIL_HOST_PASSWORD = 'sbog hrdj icpg zodj'
+
+# CLoudinary -django integrations
+
+cloudinary.config(
+    cloud_name = "divdrog6j",
+    api_key = "723245315624972",
+    api_secret = "Y0VSKWTt5YPLpA3L5TcM2fAk82M"
+)
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'

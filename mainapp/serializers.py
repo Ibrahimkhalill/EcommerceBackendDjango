@@ -36,18 +36,23 @@ class ProductImageSerializer(serializers.ModelSerializer):
     color = ColorSeriaLizer()
     class Meta:
         model = ProductImage
-        # fields = ["id","product", "color","image"]
+       
         fields = ["id","image","color"]
 class BrandSerializer(serializers.ModelSerializer):
         class Meta:
             model = Brand
-            # fields = ["id","product", "color","image"]
+           
             fields = ["id","name"]
 
-
+class MaterialSerializer(serializers.ModelSerializer):
+        class Meta:
+            model = Material
+           
+            fields = ["id","name"]
 class ProductSerializer(serializers.ModelSerializer):
     Product_SubCategory = SubCategorySerializer()
     brand = BrandSerializer()
+    material = MaterialSerializer()
     class Meta:
         model = Product
         fields = ['id', 'Product_SubCategory','name','brand', 'material', 'price','discount','digital','details','cover_image']   
@@ -60,6 +65,15 @@ class VariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Variant
         fields = ["id","product","image","size","quantity","price"] 
+
+
+class StockSerializer(serializers.ModelSerializer):
+    variation = VariantSerializer()
+
+    class Meta:
+        model = Stock
+        fields = ['id','variation','initial_quantity', 'sold_quantity', 'quantity']
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
     variant = VariantSerializer()
@@ -121,7 +135,7 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ShippingAdress
-        fields = ["id", "customer", "order", "status", "name", "address", "division", "district", "upazila", "phone_number", "delivery_fee","order_items"]
+        fields = ["id", "customer", "order", "status", "name", "address", "phone_number", "delivery_fee","order_items","date_added"]
 
     def get_order_items(self, obj):
         order_items = OrderItem.objects.filter(order=obj.order)

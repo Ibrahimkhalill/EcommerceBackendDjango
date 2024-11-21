@@ -91,7 +91,6 @@ def Password_reset_send_otp(request):
                 
                 return JsonResponse({'message': 'OTP sent to your email.'}, status = status.HTTP_200_OK)
                 
-           
         except :
                     
             return Response({'message': 'The account you provided does not exist. Please try again with another account.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -103,46 +102,42 @@ def Password_reset_send_otp(request):
 def verify_otp(request):
     if request.method == 'POST':
         otp = request.data.get('otp')
-        print(otp)
+
         try:
                 otp_record = OTP.objects.get(otp=otp)
-                otp_record.attempts += 1  # Increment attempt count
-                otp_record.save()  # Save the updated attempt count
+                otp_record.attempts += 1  
+                otp_record.save()  
                 if (timezone.now() - otp_record.created_at).seconds > 120:
-                   
-                    otp_record.delete()  # Expired OTP remove korte hobe
+                    otp_record.delete()  
                     return Response({'message': ' Otp Expired'})
                 else:
-                   
-                    otp_record.delete()  # Verified OTP remove korte hobe
+                    otp_record.delete()  
                     return Response('success', status=status.HTTP_200_OK)
         except OTP.DoesNotExist:
                 return Response({'message': 'Invalid Otp'}, status=status.HTTP_400_BAD_REQUEST)
            
-   
     return Response("Method is not allowed")
 
 @api_view(['POST'])
 def signup_view(request):
     if request.method == 'POST':
-        # Use request.data to parse JSON data
+        
         username = request.data.get('username')
         email = request.data.get('email')
         password = request.data.get('password')
         phone_number = request.data.get('phone_number')
 
-        # Check if a user with the given email already exists
         existing_user = User.objects.filter(email=email).first()
         if existing_user:
-            # If a user with the email exists, return an error response
+           
             return Response({'message': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Use create_user to create a new user with hashed password
+            #
             user = User.objects.create_user(username=username, email=email, password=password)
             customeruser = CustomeUser(username=username, email=email, phone_number = phone_number)
             customeruser.save()
-            # Check if user creation was successful
+
             if user:
                 return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
             else:
@@ -152,16 +147,17 @@ def signup_view(request):
             return Response({'message': 'User registration failed', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 
-
-
 @api_view(['POST'])
 def google_signup(request):
     if request.method == 'POST':
         username = request.data.get('username')
         email = request.data.get('email')
-        
+
+        existing_user = User.objects.filter(email=email).first()
+        if existing_user:
+            # If a user with the email exists, return an error response
+            return Response({'message': 'Username or email already exists'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-        
             user = User.objects.create_user(username=username, email=email)
             customeruser = CustomeUser(username=username, email=email)
             customeruser.save()
@@ -181,7 +177,7 @@ def login_view(request):
         email = request.data.get('username')
         password = request.data.get('password')
         try:
-            user = CustomeUser.objects.get(email =email)
+            user = get_object_or_404(CustomeUser, email = email)
             print(user.username)
             # Authenticate user using email and password
             user_auth = authenticate(request, username=user.username, password=password)
@@ -261,7 +257,7 @@ def reset_password(request):
         new_password = request.data.get('newpassword')
         
         try:
-            userdata = CustomeUser.objects.get(email=email)
+            userdata = get_object_or_404(CustomeUser, email = email)
             user = User.objects.get(username=userdata.username)
             
             if user:
@@ -373,10 +369,21 @@ def get_brand(request):
         brand_serializer = BrandSerializer(brand, many=True)
         subcategories = SubCategory.objects.all()
         subcategory_serializer = SubCategorySerializer(subcategories, many=True)
-
+        category = Category.objects.all()
+        category_serializer = CategoryNameSerializer(category,many=True)
+        material = Material.objects.all()
+        material_serializer = MaterialSerializer(material,many=True)
+        color = Color.objects.all()
+        color_serializer = ColorSeriaLizer(color,many=True)
+        size = Size.objects.all()
+        size_srializer = SizeSeriaLizer(size,many=True)
         response_data = {
             'brand': brand_serializer.data,
-             'subcategory': subcategory_serializer.data
+            'subcategory': subcategory_serializer.data,
+            'category':category_serializer.data,
+            'material': material_serializer.data,
+            'color': color_serializer.data,
+            'size':size_srializer.data
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
@@ -471,12 +478,16 @@ def get_product_id(request, id):
         product = get_object_or_404(Product, id=id)
     
         variant =  Variant.objects.filter(product=product)
-        
+        stock = Stock.objects.all()
         product_serializer = ProductSerializer(product)
         delivery = DeliveryFee.objects.all()
         deliverySeriazlizer = DeliveryFeeSerializer(delivery, many=True)
         variant_serilizer = VariantSerializer(variant, many=True)
-        
+
+        stock_serializer = StockSerializer(stock , many = True)
+
+        related_product = Product.objects.filter(Product_SubCategory = product.Product_SubCategory)
+        related_product_serializer = ProductSerializer(related_product,many=True)
         # Assuming you want to filter order items by each variant
         order_items = []
         for var in variant:
@@ -493,12 +504,19 @@ def get_product_id(request, id):
             'product': product_data,
             'variants': variant_serilizer.data,
             "delivery": deliverySeriazlizer.data,
+            "related_product": related_product_serializer.data,
+            "stock": stock_serializer.data
     }
 
         return Response(response_data, status=status.HTTP_200_OK)
         
             # Handle the case where the user doesn't exist
-       
+def stock_upteded( variation_id, sell_count):
+    print("variation_id",variation_id,sell_count)
+    stock = Stock.objects.get(variation_id=variation_id)
+    stock.sold_quantity += sell_count  # Increment sold count
+    stock.quantity -= sell_count  # Decrement available stock
+    stock.save()
 
 @csrf_exempt
 @api_view(['POST'])  
@@ -531,21 +549,22 @@ def processOrder(request):
                 status = status_id,
                 name=data_dict['name'],
                 address=data_dict['address'],
-                division=data_dict['division'],
-                district=data_dict['district'],
-                upazila =data_dict['upazila'],
                 phone_number=data_dict['number'],
                 delivery_fee = delivery
             )
 
             order_details = OrderItem.objects.filter(order = order)
+
+            for item in order_details:
+                stock_upteded(item.variant.id, item.quantity)
+
             shiiping = ShippingAdress.objects.get(order=order)
             
-           
+            total_price = int(shiiping.delivery_fee.fee) + total
             context ={
                 "order_details":order_details,
                 "ShippingAdress": shiiping,
-                "total": total,
+                "total": total_price,
                 
             }
             html_content = render_to_string('OrderConfirmAtion.html',context)
@@ -793,12 +812,12 @@ def OrderConfirm(request):
     
     order_details = OrderItem.objects.filter(order = 4)
     shiiping = ShippingAdress.objects.get(order= 4)
-   
+    total_price = int(shiiping.delivery_fee.fee) + 20
             
     context ={
             "order_details": order_details,
             "ShippingAdress": shiiping,
-           
+            "total":total_price
 
             
         }

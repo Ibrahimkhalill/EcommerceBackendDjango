@@ -25,6 +25,8 @@ admin.site.register(OTP)
 admin.site.register(CustomeUser)
 admin.site.register(Brand)
 admin.site.register(ProductImage)
+admin.site.register(Material)
+admin.site.register(Stock)
 
 from django.forms import inlineformset_factory
 
